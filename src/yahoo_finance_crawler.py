@@ -1,5 +1,6 @@
 import csv
 import time
+from datetime import datetime
 from typing import List, Dict
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -14,7 +15,8 @@ class YahooFinanceCrawler:
     def __init__(self, region: str, driver_path: str, output_file: str = None):
         self.region = region
         self.driver_path = driver_path
-        self.output_file = output_file or f"yahoo_finance_data_{self.region}.csv"
+        # Nome do arquivo CSV no formato `finance_data_<region>_MMDDYYYY.csv`
+        self.output_file = output_file or f"finance_data_{self.region}_{datetime.now().strftime('%m%d%Y')}.csv"
         self.url = "https://finance.yahoo.com/screener/new"
         self.driver = self._init_driver()
         self.data: List[Dict[str, str]] = []
@@ -51,14 +53,12 @@ class YahooFinanceCrawler:
             menu = self.driver.find_element(By.ID, "dropdown-menu")
             self._unselect_default_region(menu)
 
-            # Tentativa de selecionar a região, captura a exceção se não for encontrada
             try:
                 self._select_region(menu)
             except NoSuchElementException:
                 print(f"Região '{self.region}' não encontrada.")
                 return False
 
-            # Aplica o filtro e atualiza a página
             find_button = self.driver.find_element(By.CSS_SELECTOR,
                                                    "[data-test='find-stock']")
             WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
