@@ -29,30 +29,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Baixa e instala a última versão do ChromeDriver
-      - name: Install Latest ChromeDriver
+      # Instala o ChromeDriver e o Google Chrome mais recente para compatibilidade
+      - name: Install Latest ChromeDriver and Google Chrome
         run: |
           LATEST_CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE)
           curl -Lo /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/$LATEST_CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
           sudo unzip /tmp/chromedriver.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
-          echo "ChromeDriver version installed: $LATEST_CHROMEDRIVER_VERSION"
 
-      # Instala o Google Chrome mais recente
-      - name: Install Latest Google Chrome
-        run: |
           wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
           sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      # Define o caminho do ChromeDriver como variável de ambiente
       - name: Set ChromeDriver path
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
 
-      - name: Run Coverage
+      - name: Run Tests
         env:
-          DISPLAY: :99.0
+          DISPLAY: :99.0  # Define a variável DISPLAY para testes headless
         run: |
-          coverage run -m unittest discover tests
-          coverage report -m
+          python -m unittest discover -s tests -p "*.py"
