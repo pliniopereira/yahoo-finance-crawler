@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - main
-      - dev  # Adiciona a branch dev para rodar o pipeline em pushes
+      - dev
   pull_request:
     branches:
       - main
-      - dev  # Adiciona a branch dev para rodar o pipeline em pull requests
-
+      - dev
 
 jobs:
   test:
@@ -54,8 +53,8 @@ jobs:
       - name: Set ChromeDriver path
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
 
-      # Executa os testes
+      # Executa os testes com unittest
       - name: Run tests
         env:
           DISPLAY: :99.0  # Necessário para ambientes headless
-        run: poetry run pytest
+        run: poetry run python -m unittest discover tests/test_crawler.py
