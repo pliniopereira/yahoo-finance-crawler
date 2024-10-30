@@ -1,5 +1,4 @@
 [tool.poetry]
-name = "yahoo-finance-crawler"
 version = "0.1.0"
 description = "A web crawler for Yahoo Finance data"
 authors = ["Plinio Pereira <pliniojr@gmail.com>"]
