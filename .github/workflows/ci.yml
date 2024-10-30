@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - main
+      - dev  # Adiciona a branch dev para rodar o pipeline em pushes
   pull_request:
     branches:
       - main
+      - dev  # Adiciona a branch dev para rodar o pipeline em pull requests
+
 
 jobs:
   test:
