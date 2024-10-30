@@ -20,3 +20,5 @@ typing_extensions
 urllib3
 websocket-client
 wsproto
+webdriver-manager
+
