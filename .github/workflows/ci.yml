@@ -28,20 +28,8 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-
-      - name: Configure Poetry in PATH
-        run: |
-          echo "${{ runner.home }}/.local/bin" >> $GITHUB_PATH
-
       - name: Install dependencies
-        working-directory: ./
-        run: poetry install
-
-      - name: Install additional tools (black, flake8, and coverage)
-        run: poetry add black flake8 coverage --dev
+        run: pip install -r requirements.txt
 
       - name: Install Google Chrome
         run: |
@@ -60,7 +48,7 @@ jobs:
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
 
       - name: Run Black
-        run: poetry run black .
+        run: black .
 
       - name: Commit formatted code
         if: github.event_name == 'push'
@@ -71,11 +59,11 @@ jobs:
           git diff-index --quiet HEAD || git commit -m "Apply code formatting with Black" && git push
 
       - name: Run Flake8
-        run: poetry run flake8 src tests
+        run: flake8 src tests
 
       - name: Run Coverage
         env:
           DISPLAY: :99.0
         run: |
-          poetry run coverage run -m unittest discover tests
-          poetry run coverage report -m
+          coverage run -m unittest discover tests
+          coverage report -m
