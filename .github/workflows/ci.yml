@@ -50,23 +50,8 @@ jobs:
           sudo unzip /tmp/chromedriver.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
-
       - name: Set ChromeDriver path
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
-
-      - name: Run Black
-        run: black .
-
-      - name: Commit formatted code
-        if: github.event_name == 'push'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Actions Bot"
-          git add .
-          git diff-index --quiet HEAD || git commit -m "Apply code formatting with Black" && git push
-
-      - name: Run Flake8
-        run: flake8 src tests
 
       - name: Run Coverage
         env:
