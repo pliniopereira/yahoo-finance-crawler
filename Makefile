@@ -8,10 +8,10 @@ run:
 	poetry run python src/main.py --region $(region)
 
 lint:
-	poetry run flake8 src/ tests/
+	poetry run flake8 --max-line-length 80 src/ tests/
 
 fmt:
-	poetry run black src/ tests/
+	poetry run black --line-length 80 src/ tests/
 
 docs:
 	poetry run sphinx-build -b html docs/ docs/_build/html

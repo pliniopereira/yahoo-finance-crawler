@@ -1,23 +1,32 @@
 import csv
+import os
+import sys
 import time
 from datetime import datetime
 from typing import List, Dict
+
+from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from bs4 import BeautifulSoup
-import sys
+from selenium.webdriver.support.ui import WebDriverWait
 
 
 class YahooFinanceCrawler:
     def __init__(self, region: str, driver_path: str, output_file: str = None):
-        self.region = region.lower()  # Normaliza `region` para minúsculas para comparação
+        self.region = region.lower()
         self.driver_path = driver_path
-        # Nome do arquivo CSV no formato `finance_data_<region>_MMDDYYYY.csv`
-        self.output_file = output_file or f"finance_data_{self.region}_{datetime.now().strftime('%m%d%Y')}.csv"
+
+        if not os.path.exists("extract_data"):
+            os.makedirs("extract_data")
+
+        sanitized_region = self.region.replace(" ", "_")
+        self.output_file = output_file or os.path.join(
+            "extract_data",
+            f"finance_data_{sanitized_region}_{datetime.now().strftime('%m%d%Y')}.csv",
+        )
         self.url = "https://finance.yahoo.com/screener/new"
         self.driver = self._init_driver()
         self.data: List[Dict[str, str]] = []
@@ -33,7 +42,9 @@ class YahooFinanceCrawler:
         self.driver.get(self.url)
         if not self._apply_region_filter():
             print(
-                f"Filtro de região '{self.region}' não encontrado. Encerrando o programa.")
+                f"Filtro de região '{self.region}' não encontrado. "
+                f"Encerrando o programa."
+            )
             self.close()
             sys.exit()
 
@@ -44,10 +55,12 @@ class YahooFinanceCrawler:
         try:
             filter_area = WebDriverWait(self.driver, 10).until(
                 EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR, "[data-test='label-filter-list']"))
+                    (By.CSS_SELECTOR, "[data-test='label-filter-list']")
+                )
             )
-            region_button = filter_area.find_element(By.CSS_SELECTOR,
-                                                     "[data-icon='new']")
+            region_button = filter_area.find_element(
+                By.CSS_SELECTOR, "[data-icon='new']"
+            )
             region_button.click()
 
             WebDriverWait(self.driver, 10).until(
@@ -55,37 +68,41 @@ class YahooFinanceCrawler:
             )
             menu = self.driver.find_element(By.ID, "dropdown-menu")
 
-            # Extrai a lista de países disponíveis usando BeautifulSoup
             soup = BeautifulSoup(menu.get_attribute("innerHTML"), "html.parser")
             country_elements = soup.find_all("span", string=True)
 
-            # Cria um dicionário para armazenar os países com minúsculas para comparação e os nomes originais
             available_countries = {
-                country.text.strip().lower(): country.text.strip() for country
-                in country_elements}
+                country.text.strip().lower(): country.text.strip()
+                for country in country_elements
+            }
 
-            # Verifica se `region` está na lista de países disponíveis (em minúsculas)
             if self.region not in available_countries:
                 print(
-                    f"Região '{self.region}' não está na lista de países disponíveis. Encerrando o programa.")
+                    f"Região '{self.region}' não está na lista de países "
+                    f"disponíveis. Encerrando o programa."
+                )
                 self.close()
-                sys.exit()  # Encerra o programa se o país não estiver disponível
+                sys.exit()
 
-            # Obtemos o nome original do país para clicar no checkbox
             country_original_name = available_countries[self.region]
             print(f"Selecionando o país: {country_original_name}")
 
             self._unselect_default_region(menu)
             self._select_region(menu, country_original_name)
 
-            find_button = self.driver.find_element(By.CSS_SELECTOR,
-                                                   "[data-test='find-stock']")
-            WebDriverWait(self.driver, 10).until(EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "[data-test='find-stock']")))
+            find_button = self.driver.find_element(
+                By.CSS_SELECTOR, "[data-test='find-stock']"
+            )
+            WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "[data-test='find-stock']")
+                )
+            )
             find_button.click()
 
             WebDriverWait(self.driver, 10).until(
-                EC.visibility_of_element_located((By.ID, "screener-results")))
+                EC.visibility_of_element_located((By.ID, "screener-results"))
+            )
             return True
         except (NoSuchElementException, TimeoutException):
             return False
@@ -94,7 +111,7 @@ class YahooFinanceCrawler:
         try:
             us_checkbox = menu.find_element(
                 By.XPATH,
-                f"//span[contains(text(), 'United States')]/../input[@type='checkbox']",
+                "//span[contains(text(), 'United States')]/../input[@type='checkbox']",
             )
             us_checkbox.click()
         except NoSuchElementException:
@@ -125,12 +142,13 @@ class YahooFinanceCrawler:
 
                 next_button = self.driver.find_element(
                     By.XPATH,
-                    "//span/span[contains(text(), 'Next')]/ancestor::button"
+                    "//span/span[contains(text(), 'Next')]/ancestor::button",
                 )
                 if next_button.is_enabled():
-                    self.driver.execute_script("arguments[0].click();",
-                                               next_button)
-                    time.sleep(1)
+                    self.driver.execute_script(
+                        "arguments[0].click();", next_button
+                    )
+                    time.sleep(5)
                 else:
                     more_data = False
             except TimeoutException:
@@ -153,10 +171,12 @@ class YahooFinanceCrawler:
                 self.data.append(stock_data)
 
     def _save_to_csv(self) -> None:
-        with open(self.output_file, "w", newline="",
-                  encoding="utf-8") as csvfile:
-            writer = csv.DictWriter(csvfile,
-                                    fieldnames=["symbol", "name", "price"])
+        with open(
+            self.output_file, "w", newline="", encoding="utf-8"
+        ) as csvfile:
+            writer = csv.DictWriter(
+                csvfile, fieldnames=["symbol", "name", "price"]
+            )
             writer.writeheader()
             writer.writerows(self.data)
         print(f"Dados salvos em {self.output_file}")
