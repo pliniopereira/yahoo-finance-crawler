@@ -16,7 +16,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 class YahooFinanceCrawler:
-    def __init__(self, region: str, driver_path: str, output_file: str = None):
+    def __init__(self, region: str, driver_path: str, output_file: str = None,
+                 headless: bool = True):
         self.region = region.lower()
         self.driver_path = driver_path
 
@@ -29,12 +30,13 @@ class YahooFinanceCrawler:
             f"finance_data_{sanitized_region}_{datetime.now().strftime('%m%d%Y')}.csv",
         )
         self.url = "https://finance.yahoo.com/screener/new"
-        self.driver = self._init_driver()
+        self.driver = self._init_driver(headless)
         self.data: List[Dict[str, str]] = []
 
-    def _init_driver(self):
+    def _init_driver(self, headless: bool):
         options = webdriver.ChromeOptions()
-        options.add_argument("--headless")  # Modo headless para CI/CD
+        if headless:
+            options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         service = Service(ChromeDriverManager().install())
@@ -43,6 +45,8 @@ class YahooFinanceCrawler:
 
     def fetch_data(self) -> None:
         self.driver.get(self.url)
+        self._unselect_default_region()
+
         if not self._apply_region_filter():
             print(
                 f"Filtro de região '{self.region}' não encontrado. "
@@ -71,6 +75,8 @@ class YahooFinanceCrawler:
             )
             menu = self.driver.find_element(By.ID, "dropdown-menu")
 
+            time.sleep(2)
+
             soup = BeautifulSoup(menu.get_attribute("innerHTML"), "html.parser")
             country_elements = soup.find_all("span", string=True)
 
@@ -90,7 +96,6 @@ class YahooFinanceCrawler:
             country_original_name = available_countries[self.region]
             print(f"Selecionando o país: {country_original_name}")
 
-            self._unselect_default_region(menu)
             self._select_region(menu, country_original_name)
 
             find_button = self.driver.find_element(
@@ -110,22 +115,46 @@ class YahooFinanceCrawler:
         except (NoSuchElementException, TimeoutException):
             return False
 
-    def _unselect_default_region(self, menu) -> None:
+    def _unselect_default_region(self) -> None:
         try:
-            us_checkbox = menu.find_element(
-                By.XPATH,
-                "//span[contains(text(), 'United States')]/../input[@type='checkbox']",
+            filter_area = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "[data-test='label-filter-list']")
+                )
             )
-            us_checkbox.click()
+            region_button = filter_area.find_element(
+                By.CSS_SELECTOR, "[data-icon='new']"
+            )
+            region_button.click()
+
+            WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located((By.ID, "dropdown-menu"))
+            )
+            menu = self.driver.find_element(By.ID, "dropdown-menu")
+
+            us_checkbox = WebDriverWait(menu, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH,
+                     "//span[contains(text(), 'United States')]/../input[@type='checkbox']")
+                )
+            )
+            self.driver.execute_script("arguments[0].click();", us_checkbox)
+
+            close_button = menu.find_element(By.CLASS_NAME, "close")
+            close_button.click()
         except NoSuchElementException:
-            pass
+            print(
+                "Não foi possível desmarcar 'United States' no filtro padrão.")
 
     def _select_region(self, menu, country_name: str) -> None:
-        checkbox = menu.find_element(
-            By.XPATH,
-            f"//span[contains(text(), '{country_name}')]/../input[@type='checkbox']",
+        checkbox = WebDriverWait(menu, 10).until(
+            EC.presence_of_element_located(
+                (By.XPATH,
+                 f"//span[contains(text(), '{country_name}')]/../input[@type='checkbox']")
+            )
         )
-        checkbox.click()
+        self.driver.execute_script("arguments[0].click();", checkbox)
+
         close_button = menu.find_element(By.CLASS_NAME, "close")
         close_button.click()
 
