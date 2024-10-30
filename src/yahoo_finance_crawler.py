@@ -15,7 +15,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Configuração do logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -52,6 +51,7 @@ class YahooFinanceCrawler:
     def fetch_data(self) -> None:
         logging.info(f"Acessando a URL: {self.url}")
         self.driver.get(self.url)
+        self._unselect_default_region()
         if not self._apply_region_filter():
             logging.error(
                 f"Filtro de região '{self.region}' não encontrado. Encerrando o programa.")
@@ -62,13 +62,42 @@ class YahooFinanceCrawler:
         logging.info("Extração de dados concluída")
         self._save_to_csv()
 
+    def _unselect_default_region(self) -> None:
+        try:
+            filter_area = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, "[data-test='label-filter-list']"))
+            )
+            region_button = filter_area.find_element(By.CSS_SELECTOR,
+                                                     "[data-icon='new']")
+            region_button.click()
+
+            WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located((By.ID, "dropdown-menu"))
+            )
+            menu = self.driver.find_element(By.ID, "dropdown-menu")
+
+            us_checkbox = WebDriverWait(menu, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH,
+                     "//span[contains(text(), 'United States')]/../input[@type='checkbox']")
+                )
+            )
+            self.driver.execute_script("arguments[0].click();", us_checkbox)
+            logging.info("Região padrão 'United States' desmarcada")
+
+            close_button = menu.find_element(By.CLASS_NAME, "close")
+            close_button.click()
+        except NoSuchElementException:
+            logging.warning(
+                "Não foi possível desmarcar 'United States' no filtro padrão.")
+
     def _apply_region_filter(self) -> bool:
         try:
             filter_area = WebDriverWait(self.driver, 15).until(
                 EC.element_to_be_clickable(
                     (By.CSS_SELECTOR, "[data-test='label-filter-list']"))
             )
-            logging.info("Filtro de regiões encontrado, aplicando filtro...")
             for _ in range(3):
                 try:
                     region_button = filter_area.find_element(By.CSS_SELECTOR,
@@ -89,7 +118,8 @@ class YahooFinanceCrawler:
             country_elements = soup.find_all("span", string=True)
             available_countries = {
                 country.text.strip().lower(): country.text.strip() for country
-                in country_elements}
+                in country_elements
+            }
             if self.region not in available_countries:
                 logging.error(
                     f"Região '{self.region}' não está na lista de países disponíveis. Encerrando o programa.")
@@ -97,7 +127,6 @@ class YahooFinanceCrawler:
                 sys.exit()
             country_original_name = available_countries[self.region]
             logging.info(f"Selecionando o país: {country_original_name}")
-            self._unselect_default_region(menu)
             self._select_region(menu, country_original_name)
             find_button = WebDriverWait(self.driver, 15).until(
                 EC.element_to_be_clickable(
@@ -113,18 +142,6 @@ class YahooFinanceCrawler:
                 StaleElementReferenceException) as e:
             logging.error(f"Erro ao tentar aplicar o filtro de região: {e}")
             return False
-
-    def _unselect_default_region(self, menu) -> None:
-        try:
-            us_checkbox = menu.find_element(
-                By.XPATH,
-                "//span[contains(text(), 'United States')]/../input[@type='checkbox']"
-            )
-            us_checkbox.click()
-            logging.info("Desmarcando a região padrão 'United States'")
-        except NoSuchElementException:
-            logging.warning(
-                "Caixa de seleção 'United States' não encontrada para desmarcar")
 
     def _select_region(self, menu, country_name: str) -> None:
         checkbox = menu.find_element(
@@ -146,7 +163,7 @@ class YahooFinanceCrawler:
                 )
                 logging.info(f"Extraindo dados da página {page_number}")
                 self._parse_page_data()
-                next_button = WebDriverWait(self.driver, 30).until(
+                next_button = WebDriverWait(self.driver, 60).until(
                     EC.element_to_be_clickable((By.XPATH,
                                                 "//span/span[contains(text(), 'Next')]/ancestor::button"))
                 )
