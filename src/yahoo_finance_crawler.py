@@ -9,11 +9,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from bs4 import BeautifulSoup
+import sys
 
 
 class YahooFinanceCrawler:
     def __init__(self, region: str, driver_path: str, output_file: str = None):
-        self.region = region
+        self.region = region.lower()  # Normaliza `region` para minúsculas para comparação
         self.driver_path = driver_path
         # Nome do arquivo CSV no formato `finance_data_<region>_MMDDYYYY.csv`
         self.output_file = output_file or f"finance_data_{self.region}_{datetime.now().strftime('%m%d%Y')}.csv"
@@ -31,8 +32,10 @@ class YahooFinanceCrawler:
     def fetch_data(self) -> None:
         self.driver.get(self.url)
         if not self._apply_region_filter():
-            print(f"Filtro de região '{self.region}' não encontrado.")
-            return
+            print(
+                f"Filtro de região '{self.region}' não encontrado. Encerrando o programa.")
+            self.close()
+            sys.exit()
 
         self._extract_data()
         self._save_to_csv()
@@ -51,13 +54,29 @@ class YahooFinanceCrawler:
                 EC.visibility_of_element_located((By.ID, "dropdown-menu"))
             )
             menu = self.driver.find_element(By.ID, "dropdown-menu")
-            self._unselect_default_region(menu)
 
-            try:
-                self._select_region(menu)
-            except NoSuchElementException:
-                print(f"Região '{self.region}' não encontrada.")
-                return False
+            # Extrai a lista de países disponíveis usando BeautifulSoup
+            soup = BeautifulSoup(menu.get_attribute("innerHTML"), "html.parser")
+            country_elements = soup.find_all("span", string=True)
+
+            # Cria um dicionário para armazenar os países com minúsculas para comparação e os nomes originais
+            available_countries = {
+                country.text.strip().lower(): country.text.strip() for country
+                in country_elements}
+
+            # Verifica se `region` está na lista de países disponíveis (em minúsculas)
+            if self.region not in available_countries:
+                print(
+                    f"Região '{self.region}' não está na lista de países disponíveis. Encerrando o programa.")
+                self.close()
+                sys.exit()  # Encerra o programa se o país não estiver disponível
+
+            # Obtemos o nome original do país para clicar no checkbox
+            country_original_name = available_countries[self.region]
+            print(f"Selecionando o país: {country_original_name}")
+
+            self._unselect_default_region(menu)
+            self._select_region(menu, country_original_name)
 
             find_button = self.driver.find_element(By.CSS_SELECTOR,
                                                    "[data-test='find-stock']")
@@ -81,10 +100,10 @@ class YahooFinanceCrawler:
         except NoSuchElementException:
             pass
 
-    def _select_region(self, menu) -> None:
+    def _select_region(self, menu, country_name: str) -> None:
         checkbox = menu.find_element(
             By.XPATH,
-            f"//span[contains(text(), '{self.region}')]/../input[@type='checkbox']",
+            f"//span[contains(text(), '{country_name}')]/../input[@type='checkbox']",
         )
         checkbox.click()
         close_button = menu.find_element(By.CLASS_NAME, "close")
