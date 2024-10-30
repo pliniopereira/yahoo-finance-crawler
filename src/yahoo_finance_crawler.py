@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import sys
 from datetime import datetime
@@ -13,6 +14,13 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
+# Configuração do logger
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()]
+)
 
 
 class YahooFinanceCrawler:
@@ -29,7 +37,7 @@ class YahooFinanceCrawler:
         self.url = "https://finance.yahoo.com/screener/new"
         self.driver = self._init_driver()
         self.data: Set[Tuple[str, str, str]] = set()
-        print(f"Inicializado o crawler para a região: {self.region}")
+        logging.info(f"Crawler inicializado para a região: {self.region}")
 
     def _init_driver(self):
         options = webdriver.ChromeOptions()
@@ -38,20 +46,20 @@ class YahooFinanceCrawler:
         options.add_argument("--disable-dev-shm-usage")
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        print("Driver do Chrome inicializado em modo headless")
+        logging.info("Driver do Chrome inicializado em modo headless")
         return driver
 
     def fetch_data(self) -> None:
-        print(f"Acessando a URL: {self.url}")
+        logging.info(f"Acessando a URL: {self.url}")
         self.driver.get(self.url)
         if not self._apply_region_filter():
-            print(
+            logging.error(
                 f"Filtro de região '{self.region}' não encontrado. Encerrando o programa.")
             self.close()
             sys.exit()
-        print("Iniciando extração de dados")
+        logging.info("Iniciando extração de dados")
         self._extract_data()
-        print("Extração de dados concluída")
+        logging.info("Extração de dados concluída")
         self._save_to_csv()
 
     def _apply_region_filter(self) -> bool:
@@ -60,7 +68,7 @@ class YahooFinanceCrawler:
                 EC.element_to_be_clickable(
                     (By.CSS_SELECTOR, "[data-test='label-filter-list']"))
             )
-            print("Filtro de regiões encontrado, aplicando filtro...")
+            logging.info("Filtro de regiões encontrado, aplicando filtro...")
             for _ in range(3):
                 try:
                     region_button = filter_area.find_element(By.CSS_SELECTOR,
@@ -80,16 +88,15 @@ class YahooFinanceCrawler:
             soup = BeautifulSoup(menu.get_attribute("innerHTML"), "html.parser")
             country_elements = soup.find_all("span", string=True)
             available_countries = {
-                country.text.strip().lower(): country.text.strip()
-                for country in country_elements
-            }
+                country.text.strip().lower(): country.text.strip() for country
+                in country_elements}
             if self.region not in available_countries:
-                print(
+                logging.error(
                     f"Região '{self.region}' não está na lista de países disponíveis. Encerrando o programa.")
                 self.close()
                 sys.exit()
             country_original_name = available_countries[self.region]
-            print(f"Selecionando o país: {country_original_name}")
+            logging.info(f"Selecionando o país: {country_original_name}")
             self._unselect_default_region(menu)
             self._select_region(menu, country_original_name)
             find_button = WebDriverWait(self.driver, 15).until(
@@ -100,11 +107,11 @@ class YahooFinanceCrawler:
             WebDriverWait(self.driver, 15).until(
                 EC.visibility_of_element_located((By.ID, "screener-results"))
             )
-            print("Filtro de região aplicado com sucesso")
+            logging.info("Filtro de região aplicado com sucesso")
             return True
         except (NoSuchElementException, TimeoutException,
                 StaleElementReferenceException) as e:
-            print(f"Erro ao tentar aplicar o filtro de região: {e}")
+            logging.error(f"Erro ao tentar aplicar o filtro de região: {e}")
             return False
 
     def _unselect_default_region(self, menu) -> None:
@@ -114,9 +121,10 @@ class YahooFinanceCrawler:
                 "//span[contains(text(), 'United States')]/../input[@type='checkbox']"
             )
             us_checkbox.click()
-            print("Desmarcando a região padrão 'United States'")
+            logging.info("Desmarcando a região padrão 'United States'")
         except NoSuchElementException:
-            pass
+            logging.warning(
+                "Caixa de seleção 'United States' não encontrada para desmarcar")
 
     def _select_region(self, menu, country_name: str) -> None:
         checkbox = menu.find_element(
@@ -126,7 +134,7 @@ class YahooFinanceCrawler:
         checkbox.click()
         close_button = menu.find_element(By.CLASS_NAME, "close")
         close_button.click()
-        print(f"Região '{country_name}' selecionada")
+        logging.info(f"Região '{country_name}' selecionada")
 
     def _extract_data(self) -> None:
         page_number = 1
@@ -136,22 +144,20 @@ class YahooFinanceCrawler:
                     EC.visibility_of_element_located(
                         (By.ID, "screener-results"))
                 )
-                print(f"Extraindo dados da página {page_number}")
+                logging.info(f"Extraindo dados da página {page_number}")
                 self._parse_page_data()
                 next_button = WebDriverWait(self.driver, 30).until(
-                    EC.element_to_be_clickable(
-                        (By.XPATH,
-                         "//span/span[contains(text(), 'Next')]/ancestor::button")
-                    )
+                    EC.element_to_be_clickable((By.XPATH,
+                                                "//span/span[contains(text(), 'Next')]/ancestor::button"))
                 )
                 self.driver.execute_script("arguments[0].click();", next_button)
                 page_number += 1
             except TimeoutException:
-                print(
+                logging.info(
                     "Todas as páginas foram extraídas ou o botão 'Next' não está mais disponível")
                 break
             except StaleElementReferenceException:
-                print(
+                logging.warning(
                     "Elemento 'Next' ficou stale, tentando recarregar o botão 'Next' para continuar")
                 continue
 
@@ -163,13 +169,10 @@ class YahooFinanceCrawler:
         for row in rows:
             cols = row.find_all("td")
             if cols:
-                stock_data = (
-                    cols[0].text.strip(),
-                    cols[1].text.strip(),
-                    cols[2].text.strip()
-                )
+                stock_data = (cols[0].text.strip(), cols[1].text.strip(),
+                              cols[2].text.strip())
                 self.data.add(stock_data)
-        print(f"{len(rows)} ações foram extraídas nesta página")
+        logging.info(f"{len(rows)} ações foram extraídas nesta página")
 
     def _save_to_csv(self) -> None:
         with open(self.output_file, "w", newline="",
@@ -180,8 +183,8 @@ class YahooFinanceCrawler:
             for symbol, name, price in self.data:
                 writer.writerow(
                     {"symbol": symbol, "name": name, "price": price})
-        print(f"Dados salvos em {self.output_file}")
+        logging.info(f"Dados salvos em {self.output_file}")
 
     def close(self) -> None:
         self.driver.quit()
-        print("Driver fechado e execução finalizada")
+        logging.info("Driver fechado e execução finalizada")
