@@ -71,6 +71,7 @@ Se necessário, você também pode adicionar caminhos alternativos para a execu�
 - Certifique-se de que o Google Chrome está atualizado para a versão mais recente compatível com `webdriver-manager`.
 - Este script roda em modo headless para facilitar a execução em pipelines de CI/CD.
 
+
 ### Licença
 
-Este projeto é distribuído sob a licença MIT.
+Este projeto é distribuído sob a licença **GPL-3.0**.
