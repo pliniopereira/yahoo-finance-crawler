@@ -17,11 +17,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          path: '.'
+
+      - name: List files in root
+        run: ls -la .
 
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.9'  # Ajuste para a versão de Python do seu projeto
+          python-version: '3.10'
 
       - name: Install Poetry
         run: |
@@ -32,18 +37,17 @@ jobs:
           echo "${{ runner.home }}/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
+        working-directory: ./
         run: poetry install
 
       - name: Install additional tools (black, flake8, and coverage)
         run: poetry add black flake8 coverage --dev
 
-      # Instala o Google Chrome
       - name: Install Google Chrome
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      # Instala o ChromeDriver
       - name: Install ChromeDriver
         run: |
           CHROME_VERSION=$(google-chrome --version | grep -oP '\d{2,3}' | head -1)
@@ -52,15 +56,12 @@ jobs:
           sudo unzip /tmp/chromedriver.zip -d /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
-      # Define o caminho do ChromeDriver como variável de ambiente
       - name: Set ChromeDriver path
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
 
-      # Executa o Black para autoformatação
       - name: Run Black
         run: poetry run black .
 
-      # Commite as mudanças do Black se houverem
       - name: Commit formatted code
         if: github.event_name == 'push'
         run: |
@@ -69,14 +70,12 @@ jobs:
           git add .
           git diff-index --quiet HEAD || git commit -m "Apply code formatting with Black" && git push
 
-      # Executa o Flake8 para verificação de lint
       - name: Run Flake8
         run: poetry run flake8 src tests
 
-      # Executa testes com cobertura
       - name: Run Coverage
         env:
-          DISPLAY: :99.0  # Necessário para ambientes headless
+          DISPLAY: :99.0
         run: |
           poetry run coverage run -m unittest discover tests
           poetry run coverage report -m
