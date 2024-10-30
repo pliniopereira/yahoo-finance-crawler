@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "yahoo-finance-crawler"
+version = "0.1.0"
+description = "A web crawler for Yahoo Finance data"
+authors = ["Plinio Pereira <pliniojr@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+selenium = "^4.25.0"
+beautifulsoup4 = "^4.12.3"
+
+[tool.poetry.dev-dependencies]
+black = "^23.0.0"  # Para formatação automática de código
+flake8 = "^6.0.0"  # Para verificação de lint
+coverage = "^7.0.0"  # Para cobertura de testes
+unittest = "^1.0.0"  # Para testes unitários (Python possui suporte nativo)
+parameterized = "^0.8.1"  # Para testes com parâmetros
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

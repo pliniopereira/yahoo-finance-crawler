@@ -34,6 +34,9 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      - name: Install additional tools (black, flake8, and coverage)
+        run: poetry add black flake8 coverage --dev
+
       # Instala o Google Chrome
       - name: Install Google Chrome
         run: |
@@ -53,8 +56,27 @@ jobs:
       - name: Set ChromeDriver path
         run: echo "CHROMEWEBDRIVER=/usr/local/bin/chromedriver" >> $GITHUB_ENV
 
-      # Executa os testes com unittest
-      - name: Run tests
+      # Executa o Black para autoformatação
+      - name: Run Black
+        run: poetry run black .
+
+      # Commite as mudanças do Black se houverem
+      - name: Commit formatted code
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions Bot"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Apply code formatting with Black" && git push
+
+      # Executa o Flake8 para verificação de lint
+      - name: Run Flake8
+        run: poetry run flake8 src tests
+
+      # Executa testes com cobertura
+      - name: Run Coverage
         env:
           DISPLAY: :99.0  # Necessário para ambientes headless
-        run: poetry run python -m unittest discover tests/test_crawler.py
+        run: |
+          poetry run coverage run -m unittest discover tests
+          poetry run coverage report -m
